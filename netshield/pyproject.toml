@@ -1,0 +1,11 @@
+[project]
+name = "netshield"
+version = "0.1.0"
+description = "Система обнаружения аномального сетевого трафика и защиты Web-/игровых серверов на базе Python и Linux"
+requires-python = ">=3.10"
+
+[project.scripts]
+netshield = "app.main:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
