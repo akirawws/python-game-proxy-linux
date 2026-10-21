@@ -1,5 +1,3 @@
-"""Collector: статистика и правила nftables."""
-
 from __future__ import annotations
 
 import json
@@ -12,10 +10,6 @@ __all__ = ["NftablesSource"]
 
 
 class NftablesSource(MetricSource):
-    """
-    Читает счётчики правил nftables через `nft -j list ruleset`.
-    Возвращает метрики по защищаемым серверам, портам и направлениям.
-    """
 
     def __init__(self, server_id: int) -> None:
         self.server_id = server_id
@@ -38,7 +32,6 @@ class NftablesSource(MetricSource):
             return {}
 
     def _extract_counters(self, ruleset: dict) -> tuple[int, int]:
-        """Суммирует пакеты и байты из счётчиков правил."""
         in_packets = 0
         in_bytes = 0
         nftables = ruleset.get("nftables", [])

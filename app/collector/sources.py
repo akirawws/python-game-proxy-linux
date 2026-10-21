@@ -1,5 +1,3 @@
-"""Collector: источники и агрегация метрик."""
-
 from __future__ import annotations
 
 import time
@@ -18,7 +16,6 @@ __all__ = [
 
 @dataclass
 class MetricSnapshot:
-    """Снимок метрик за один интервал опроса."""
 
     server_id: int
     timestamp: float
@@ -36,22 +33,17 @@ class MetricSnapshot:
 
 
 class MetricSource(ABC):
-    """Общий интерфейс источника метрик."""
 
     @abstractmethod
     def read(self) -> MetricSnapshot:
-        """Прочитать текущие значения счётчиков. Вернуть снимок."""
+        pass
 
     @abstractmethod
     def name(self) -> str:
-        """Имя источника (для логов и отладки)."""
+        pass
 
 
 class MetricCollector:
-    """
-    Периодически опрашивает источники метрик и считает дельты (Δt).
-    Контролирует точность интервала: опрос идёт без накопления задержки.
-    """
 
     def __init__(self, interval_sec: float = 1.0) -> None:
         self.interval_sec = interval_sec
@@ -75,7 +67,6 @@ class MetricCollector:
             return current
 
         def delta(cur_val: float, prev_val: float) -> float:
-            # обработка сброса счётчика (значение уменьшилось)
             if cur_val < prev_val:
                 return cur_val
             return cur_val - prev_val
@@ -97,7 +88,6 @@ class MetricCollector:
         )
 
     def collect_once(self) -> list[MetricSnapshot]:
-        """Один проход опроса всех источников. Возвращает снимки с дельтами."""
         results: list[MetricSnapshot] = []
         now = time.time()
 
@@ -108,7 +98,7 @@ class MetricCollector:
                 snap = self._compute_delta(source.name(), raw)
                 self._prev[source.name()] = raw
                 results.append(snap)
-            except Exception as exc:  # нет данных / ошибка чтения
+            except Exception as exc:
                 results.append(
                     MetricSnapshot(
                         server_id=0,
@@ -122,7 +112,6 @@ class MetricCollector:
     def to_storage_models(
         self, snapshots: list[MetricSnapshot]
     ) -> tuple[list[TrafficMetric], list[ConnectionMetric]]:
-        """Преобразовать снимки в модели хранилища."""
         traffic: list[TrafficMetric] = []
         connections: list[ConnectionMetric] = []
         from datetime import datetime
@@ -156,10 +145,6 @@ class MetricCollector:
         return traffic, connections
 
     def run_forever(self, callback) -> None:
-        """
-        Блокирующий цикл опроса с фиксированным интервалом.
-        callback — функция, принимающая список MetricSnapshot.
-        """
         self._running = True
         while self._running:
             start = time.time()

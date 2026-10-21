@@ -1,16 +1,9 @@
-"""Detector: экспоненциальное скользящее среднее (алгоритм B)."""
-
 from __future__ import annotations
 
 __all__ = ["EWMADetector"]
 
 
 class EWMADetector:
-    """
-    EWMA-базовая линия: baseline = alpha * value + (1 - alpha) * baseline.
-    Отклонение в N раз от базовой линии даёт балл.
-    Заморозка базовой линии во время атаки, чтобы атака не стала «нормой».
-    """
 
     def __init__(
         self,
@@ -25,7 +18,6 @@ class EWMADetector:
         self._frozen = False
 
     def update(self, value: float, is_attack: bool = False) -> float:
-        """Обновить базовую линию. Если is_attack — не обновлять (заморозка)."""
         if self._frozen or is_attack:
             return self._baseline if self._baseline is not None else value
 
@@ -45,10 +37,6 @@ class EWMADetector:
         self._frozen = False
 
     def check(self, value: float) -> tuple[bool, float]:
-        """
-        Проверить, превышает ли значение базовую линию в deviation_factor раз.
-        Возвращает (превышение, коэффициент отклонения).
-        """
         if self._baseline is None or self._baseline <= 0:
             return False, 0.0
         ratio = value / self._baseline

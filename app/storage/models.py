@@ -1,5 +1,3 @@
-"""Storage: типизированные модели данных для всех таблиц."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -29,7 +27,6 @@ class ProtectedServer:
     max_new_sources: int = 0
     max_connections: int = 0
     is_active: bool = True
-    profile: str = "custom"  # web / game / custom (ТЗ §4.1)
 
 
 @dataclass
@@ -37,7 +34,7 @@ class ProtectedPort:
     id: Optional[int] = None
     server_id: int = 0
     port: int = 0
-    protocol: str = "tcp"  # tcp / udp
+    protocol: str = "tcp"
 
 
 @dataclass
@@ -71,9 +68,9 @@ class AnomalyEvent:
     timestamp: Optional[datetime] = None
     event_type: str = ""
     score: float = 0.0
-    severity: str = "info"  # info / low / medium / high
+    severity: str = "info"
     details: str = ""
-    action_status: str = "proposed"  # proposed / applied / ignored
+    action_status: str = "proposed"
 
 
 @dataclass
@@ -83,7 +80,7 @@ class FirewallRule:
     ip: str = ""
     port: int = 0
     protocol: str = "tcp"
-    action: str = "drop"  # drop / reject / allow
+    action: str = "drop"
     expires_at: Optional[datetime] = None
     is_active: bool = True
 
@@ -101,7 +98,7 @@ class AuditLog:
 class SystemStatus:
     id: Optional[int] = None
     component: str = ""
-    status: str = "ok"  # ok / warning / error
+    status: str = "ok"
     message: str = ""
     updated_at: Optional[datetime] = None
 

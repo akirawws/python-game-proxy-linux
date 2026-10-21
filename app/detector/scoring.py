@@ -1,5 +1,3 @@
-"""Detector: оценка балла риска и объединение алгоритмов."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -18,19 +16,17 @@ __all__ = [
 
 @dataclass
 class Decision:
-    """Структурированное решение для Rule Manager."""
 
     server_id: int
-    level: str  # normal / low / medium / high
+    level: str
     score: int
     reasons: list[str] = field(default_factory=list)
-    action: str = "none"  # none / alert / limit / drop
+    action: str = "none"
     ttl_seconds: int = 0
     details: str = ""
 
 
 class ScoringScale:
-    """Шкала: 0–1 нормальный, 2–3 низкий, 4–5 средний, 6+ высокий."""
 
     @staticmethod
     def level(score: int) -> str:
@@ -44,12 +40,6 @@ class ScoringScale:
 
 
 class Detector:
-    """
-    Объединяет алгоритмы A (пороги), B (EWMA), C (статистика) в общий балл.
-    Защита от ложных срабатываний: минимальное число последовательных
-    превышений, время подтверждения, cooldown, постепенное усиление.
-    Режим наблюдения: фиксировать аномалии без изменения фильтрации.
-    """
 
     def __init__(
         self,
@@ -84,24 +74,17 @@ class Detector:
         connections: int,
         now: float,
     ) -> Decision:
-        """
-        Вычислить балл риска и сформировать Decision.
-        """
 
-        # --- Алгоритм A: фиксированные пороги ---
         thr_result: ThresholdResult = self.thresholds.check(
             in_pps, in_bps, tcp_new, udp_pps, new_sources, connections
         )
 
-        # --- Алгоритм B: EWMA ---
         ewma_exceed, ewma_ratio = self.ewma.check(in_pps)
         self.ewma.update(in_pps, is_attack=thr_result.exceeded)
 
-        # --- Алгоритм C: статистика ---
         stat_exceed, z_score = self.statistics.check(in_pps)
         self.statistics.add(in_pps)
 
-        # --- Начисление баллов ---
         score = thr_result.score
         reasons = list(thr_result.reasons)
 
@@ -112,7 +95,6 @@ class Detector:
             score += 2
             reasons.append(f"stat z-score {z_score:.1f}")
 
-        # --- Защита от ложных срабатываний ---
         if score > 0:
             self._consecutive_exceeds += 1
         else:
@@ -124,7 +106,6 @@ class Detector:
 
         level = ScoringScale.level(score)
 
-        # --- Формирование действия ---
         action = "none"
         ttl_seconds = 0
 

@@ -1,25 +1,16 @@
-"""Storage: репозиторий конфигурационных данных (SQLite/ClickHouse)."""
-
 from __future__ import annotations
 
 import sqlite3
 from dataclasses import fields, is_dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Optional
 
-from app.storage.models import (
-    TABLES,
-    AnomalyEvent,
-    FirewallRule,
-    SystemStatus,
-    TrafficMetric,
-)
+from app.storage.models import TABLES, AnomalyEvent, SystemStatus, TrafficMetric
 
 __all__ = ["Repository"]
 
 
 class Repository:
-    """Простой репозиторий на SQLite. Позже можно заменить на ClickHouse."""
 
     def __init__(self, db_path: str = "netshield.db") -> None:
         self.db_path = db_path
@@ -128,22 +119,11 @@ class Repository:
             );
             """
         )
-        # Миграция для существующих баз: добавляем колонку профиля фильтрации (§4.1).
-        try:
-            self.conn.execute(
-                "ALTER TABLE protected_servers "
-                "ADD COLUMN profile TEXT NOT NULL DEFAULT 'custom'"
-            )
-        except sqlite3.OperationalError:
-            # Колонка уже существует — игнорируем.
-            pass
         self.conn.commit()
-
-    # ----- generic helpers -----
 
     @staticmethod
     def _now() -> str:
-        return datetime.now(timezone.utc).isoformat()
+        return datetime.utcnow().isoformat()
 
     def insert(self, table: str, model) -> int:
         if not is_dataclass(model):
@@ -182,8 +162,6 @@ class Repository:
         )
         self.conn.commit()
 
-    # ----- domain methods -----
-
     def save_traffic_metric(self, metric: TrafficMetric) -> int:
         return self.insert("traffic_metrics", metric)
 
@@ -192,24 +170,6 @@ class Repository:
 
     def save_anomaly_event(self, event: AnomalyEvent) -> int:
         return self.insert("anomaly_events", event)
-
-    def save_firewall_rule(self, rule: FirewallRule) -> int:
-        return self.insert("firewall_rules", rule)
-
-    def get_active_rules(
-        self, server_id: int, now: Optional[str] = None
-    ) -> list[dict]:
-        """Активные, не истёкшие правила сервера (истечение — приложением, §8.1)."""
-        if now is None:
-            now = self._now()
-        return self.fetch_all(
-            "firewall_rules",
-            (
-                "server_id=? AND is_active=1 "
-                "AND (expires_at IS NULL OR expires_at > ?)"
-            ),
-            (server_id, now),
-        )
 
     def get_recent_traffic(
         self, server_id: int, limit: int = 100

@@ -1,5 +1,3 @@
-"""Collector: счётчики сетевых интерфейсов /sys/class/net/."""
-
 from __future__ import annotations
 
 import os
@@ -11,10 +9,6 @@ __all__ = ["InterfaceSource"]
 
 
 class InterfaceSource(MetricSource):
-    """
-    Читает счётчики rx/tx байтов и пакетов из /sys/class/net/<iface>/statistics.
-    Считает PPS и bps по разности между опросами (дельта считается в MetricCollector).
-    """
 
     SYS_CLASS_NET = "/sys/class/net"
 
@@ -62,7 +56,7 @@ class InterfaceSource(MetricSource):
 
         return MetricSnapshot(
             server_id=self.server_id,
-            timestamp=0.0,  # заполнится в MetricCollector
+            timestamp=0.0,
             in_bytes=self._read_counter(in_path),
             out_bytes=self._read_counter(out_path),
             in_pps=float(self._read_counter(in_packets_path)),
