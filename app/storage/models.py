@@ -29,6 +29,7 @@ class ProtectedServer:
     max_new_sources: int = 0
     max_connections: int = 0
     is_active: bool = True
+    profile: str = "custom"  # web / game / custom (ТЗ §4.1)
 
 
 @dataclass
