@@ -1,5 +1,3 @@
-"""Тесты модуля firewall: валидация и Rule Manager."""
-
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
