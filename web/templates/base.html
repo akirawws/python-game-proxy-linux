@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>NetShield - {% block title %}Панель{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { background-color: #0f172a; color: #e2e8f0; font-family: sans-serif; }
+    </style>
+</head>
+<body class="flex h-screen overflow-hidden">
+    <!-- Боковое меню -->
+    <aside class="w-64 bg-slate-900 border-r border-slate-800 flex flex-col">
+        <div class="p-6 text-2xl font-bold text-green-500">NetShield</div>
+        <nav class="flex-1 px-4 space-y-2">
+            <a href="/" class="block px-4 py-2 bg-slate-800 rounded text-green-400">Dashboard</a>
+            <a href="#" class="block px-4 py-2 hover:bg-slate-800 rounded">Серверы</a>
+            <a href="#" class="block px-4 py-2 hover:bg-slate-800 rounded">События</a>
+            <a href="#" class="block px-4 py-2 hover:bg-slate-800 rounded">Правила</a>
+            <a href="#" class="block px-4 py-2 hover:bg-slate-800 rounded">Настройки</a>
+        </nav>
+        <div class="p-4 border-t border-slate-800">
+            <a href="/api/auth/logout" class="text-red-400 hover:text-red-300">Выйти (admin)</a>
+        </div>
+    </aside>
+
+    <!-- Основной контент -->
+    <main class="flex-1 overflow-y-auto p-8">
+        <header class="mb-8 flex justify-between items-center">
+            <h1 class="text-2xl font-semibold">{% block header %}Обзор{% endblock %}</h1>
+            <div class="text-green-500 flex items-center gap-2">
+                <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Шлюз активен
+            </div>
+        </header>
+        {% block content %}{% endblock %}
+    </main>
+</body>
+</html>
