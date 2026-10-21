@@ -25,11 +25,6 @@ from app.firewall.validation import (
 from app.storage.models import FirewallRule, ProtectedPort, ProtectedServer
 from app.storage.repository import Repository
 
-
-# ---------------------------------------------------------------------------
-# Подделка бэкенда nftables (не требует root / nftables в тестовой среде)
-# ---------------------------------------------------------------------------
-
 class FakeBackend(NftablesBackend):
     def __init__(self) -> None:
         self.rules: dict[int, dict] = {}
@@ -67,11 +62,6 @@ class FakeBackend(NftablesBackend):
         self, server_id: int, ip: str, ports: list[int]
     ) -> None:
         self.base_calls.append((server_id, ip, list(ports)))
-
-
-# ---------------------------------------------------------------------------
-# Фикстуры
-# ---------------------------------------------------------------------------
 
 def make_repo() -> Repository:
     repo = Repository(":memory:")
@@ -113,11 +103,6 @@ def make_policy(**overrides) -> ServerPolicy:
     )
     data.update(overrides)
     return ServerPolicy(**data)
-
-
-# ---------------------------------------------------------------------------
-# Тесты валидации (validation.py)
-# ---------------------------------------------------------------------------
 
 class TestValidation:
     def test_validate_ip_valid(self):
@@ -213,11 +198,6 @@ class TestValidation:
         assert validated.protocol == "tcp"
         assert validated.ip == "10.0.0.1"
         assert validated.reason == "test"
-
-
-# ---------------------------------------------------------------------------
-# Тесты Rule Manager (rule_manager.py)
-# ---------------------------------------------------------------------------
 
 class TestRuleManager:
     def _manager(self, repo, policy=None, backend=None, **kwargs):
