@@ -1,0 +1,70 @@
+# =============================================================================
+# .gitignore для проекта NetShield (Python + Linux)
+# =============================================================================
+
+# --- Скомпилированные Python-файлы ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# --- Среда выполнения и виртуальные окружения ---
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# --- Установка и пакування (build / dist) ---
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+.installed.cfg
+MANIFEST
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Тестирование (pytest / coverage) ---
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+.tox/
+.nox/
+.hypothesis/
+
+# --- IDE и редакторы ---
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Логи и временные файлы ---
+*.log
+*.tmp
+
+# --- Документация (сборка Sphinx/MkDocs) ---
+docs/_build/
+site/
+
+# --- Типизация (mypy / pyright / pyre) ---
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pyre/
+.pytype/
+
+# --- PyInstaller ---
+*.manifest
+*.spec
