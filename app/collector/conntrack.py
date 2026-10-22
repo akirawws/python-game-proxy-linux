@@ -1,5 +1,3 @@
-"""Collector: состояние и события conntrack."""
-
 from __future__ import annotations
 
 from app.collector.sources import MetricSnapshot, MetricSource
@@ -8,11 +6,6 @@ __all__ = ["ConntrackSource"]
 
 
 class ConntrackSource(MetricSource):
-    """
-    Читает количество записей conntrack (count/max) и скорость появления
-    новых соединений. Данные берутся из /proc/sys/net/netfilter/nf_conntrack_count
-    и /proc/sys/net/netfilter/nf_conntrack_max.
-    """
 
     COUNT_PATH = "/proc/sys/net/netfilter/nf_conntrack_count"
     MAX_PATH = "/proc/sys/net/netfilter/nf_conntrack_max"
@@ -37,5 +30,5 @@ class ConntrackSource(MetricSource):
             server_id=self.server_id,
             timestamp=0.0,
             conntrack_count=count,
-            tcp_new=0,  # дельта по новым соединениях считается на уровне Collector
+            tcp_new=0,
         )

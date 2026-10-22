@@ -1,5 +1,3 @@
-"""Storage: репозиторий конфигурационных данных (SQLite/ClickHouse)."""
-
 from __future__ import annotations
 
 import sqlite3
@@ -13,7 +11,6 @@ __all__ = ["Repository"]
 
 
 class Repository:
-    """Простой репозиторий на SQLite. Позже можно заменить на ClickHouse."""
 
     def __init__(self, db_path: str = "netshield.db") -> None:
         self.db_path = db_path
@@ -124,8 +121,6 @@ class Repository:
         )
         self.conn.commit()
 
-    # ----- generic helpers -----
-
     @staticmethod
     def _now() -> str:
         return datetime.utcnow().isoformat()
@@ -166,8 +161,6 @@ class Repository:
             f"UPDATE {table} SET {sets} WHERE id=?", values
         )
         self.conn.commit()
-
-    # ----- domain methods -----
 
     def save_traffic_metric(self, metric: TrafficMetric) -> int:
         return self.insert("traffic_metrics", metric)

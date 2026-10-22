@@ -1,5 +1,3 @@
-"""Detector: фиксированные пороговые значения (алгоритм A)."""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -9,16 +7,14 @@ __all__ = ["ThresholdRule", "ThresholdResult", "ThresholdDetector"]
 
 @dataclass
 class ThresholdRule:
-    """Порог для одного сервера. Значения настраиваемые."""
 
-    max_pps: int = 0          # максимум PPS (входящий)
-    max_bps: int = 0          # максимум входящего трафика (бит/с)
-    max_new_tcp_per_s: int = 0  # новых TCP-соединений в секунду
-    max_udp_pps: int = 0      # UDP пакетов в секунду
-    max_new_sources: int = 0  # новых источников за интервал
-    max_connections: int = 0  # предельное число соединений
+    max_pps: int = 0
+    max_bps: int = 0
+    max_new_tcp_per_s: int = 0
+    max_udp_pps: int = 0
+    max_new_sources: int = 0
+    max_connections: int = 0
 
-    # веса баллов за превышение (настраиваемые)
     weight_tcp: int = 2
     weight_udp: int = 2
     weight_traffic: int = 3
@@ -34,10 +30,6 @@ class ThresholdResult:
 
 
 class ThresholdDetector:
-    """
-    Алгоритм A: фиксированные пороги.
-    Начисляет баллы за превышение каждого порога.
-    """
 
     def __init__(self, rule: ThresholdRule | None = None) -> None:
         self.rule = rule or ThresholdRule()
