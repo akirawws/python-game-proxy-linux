@@ -1,4 +1,3 @@
-"""Тесты алгоритмов Detector."""
 
 from __future__ import annotations
 
@@ -75,7 +74,7 @@ class TestStatisticsDetector:
         det = StatisticsDetector(window_size=5)
         for value in (1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0):
             det.add(value)
-        # Окно удерживает только последние 5 значений: [6.0..10.0], len == 5
+                                                                            
         exceeded, _ = det.check(8.0)
         assert exceeded is False
         exceeded, _ = det.check(100.0)
@@ -92,7 +91,7 @@ class TestThresholdDetector:
         det = ThresholdDetector(ThresholdRule(max_pps=50))
         result = det.check(100, 0, 0, 0, 0, 0)
         assert result.exceeded is True
-        assert result.score == 3  # weight_traffic
+        assert result.score == 3                  
         assert len(result.reasons) == 1
         assert "in_pps" in result.reasons[0]
         assert "50" in result.reasons[0]
@@ -108,28 +107,28 @@ class TestThresholdDetector:
         det = ThresholdDetector(ThresholdRule(max_new_tcp_per_s=10))
         result = det.check(0, 0, 50, 0, 0, 0)
         assert result.exceeded is True
-        assert result.score == 2  # weight_tcp
+        assert result.score == 2              
         assert "tcp_new" in result.reasons[0]
 
     def test_udp_pps_exceeded(self) -> None:
         det = ThresholdDetector(ThresholdRule(max_udp_pps=10))
         result = det.check(0, 0, 0, 100, 0, 0)
         assert result.exceeded is True
-        assert result.score == 2  # weight_udp
+        assert result.score == 2              
         assert "udp_pps" in result.reasons[0]
 
     def test_new_sources_exceeded(self) -> None:
         det = ThresholdDetector(ThresholdRule(max_new_sources=5))
         result = det.check(0, 0, 0, 0, 50, 0)
         assert result.exceeded is True
-        assert result.score == 2  # weight_sources
+        assert result.score == 2                  
         assert "new_sources" in result.reasons[0]
 
     def test_connections_exceeded(self) -> None:
         det = ThresholdDetector(ThresholdRule(max_connections=5))
         result = det.check(0, 0, 0, 0, 0, 50)
         assert result.exceeded is True
-        assert result.score == 2  # weight_connections
+        assert result.score == 2                      
         assert "connections" in result.reasons[0]
 
     def test_threshold_equal_not_exceeded(self) -> None:
@@ -149,7 +148,7 @@ class TestThresholdDetector:
         det = ThresholdDetector(rule)
         result = det.check(100, 0, 50, 0, 0, 0)
         assert result.exceeded is True
-        assert result.score == 3 + 2  # weight_traffic + weight_tcp
+        assert result.score == 3 + 2                               
         assert len(result.reasons) == 2
 
     def test_all_fields_exceeded(self) -> None:
@@ -164,7 +163,7 @@ class TestThresholdDetector:
         det = ThresholdDetector(rule)
         result = det.check(100, 100, 5, 100, 5, 5)
         assert result.exceeded is True
-        assert result.score == 3 + 3 + 2 + 2 + 2 + 2  # 14
+        assert result.score == 3 + 3 + 2 + 2 + 2 + 2      
         assert len(result.reasons) == 6
 
 
@@ -175,7 +174,7 @@ class TestEWMADetector:
 
     def test_check_nonpositive_baseline(self) -> None:
         det = EWMADetector(min_baseline=1.0)
-        det._baseline = 0.0  # type: ignore[assignment]
+        det._baseline = 0.0                            
         assert det.check(100.0) == (False, 0.0)
 
     def test_update_initializes_baseline(self) -> None:
@@ -193,7 +192,7 @@ class TestEWMADetector:
         det = EWMADetector(alpha=0.5)
         det.update(100.0)
         baseline = det.update(200.0)
-        assert baseline == 150.0  # 0.5*200 + 0.5*100
+        assert baseline == 150.0                     
 
     def test_update_is_attack_does_not_adapt(self) -> None:
         det = EWMADetector(alpha=0.5)
@@ -321,7 +320,7 @@ class TestDetector:
         assert decision.ttl_seconds == 300
 
     def test_medium_score_triggers_limit_in_block_mode(self) -> None:
-        # score 3 + 2 = 5 -> medium
+                                   
         rule = ThresholdRule(max_pps=50, max_new_tcp_per_s=10)
         det = self._make(
             rule=rule,
@@ -350,7 +349,7 @@ class TestDetector:
         assert decision.ttl_seconds == 0
 
     def test_cooldown_blocks_repeat_action(self) -> None:
-        # score 3 + 3 = 6 -> high -> drop
+                                         
         rule = ThresholdRule(max_pps=50, max_bps=50)
         det = self._make(
             rule=rule,
@@ -358,11 +357,11 @@ class TestDetector:
             cooldown_seconds=3600,
             observation_mode=False,
         )
-        # Первый запрос вне коoldown → блокировка.
+                                                  
         d1 = det.evaluate(100, 100, 0, 0, 0, 0, now=3600.0)
         assert d1.action == "drop"
         assert d1.level == "high"
-        # Повтор в окне коoldown → игнорируется.
+                                                
         d2 = det.evaluate(100, 100, 0, 0, 0, 0, now=3610.0)
         assert d2.action == "none"
         assert d2.score == 6
@@ -376,7 +375,7 @@ class TestDetector:
             observation_mode=False,
         )
         det.evaluate(100, 100, 0, 0, 0, 0, now=3600.0)
-        # После истечения коoldown действие снова применяется.
+                                                              
         decision = det.evaluate(100, 100, 0, 0, 0, 0, now=7200.0)
         assert decision.action == "drop"
 
@@ -386,10 +385,10 @@ class TestDetector:
             cooldown_seconds=0,
             observation_mode=True,
         )
-        # Устанавливаем базовый уровень трафика ~100 ппс.
+                                                         
         for i in range(5):
             det.evaluate(100, 0, 0, 0, 0, 0, now=float(i))
-        # Резкий скачок трафика: превышения EWMA и статистики.
+                                                              
         decision = det.evaluate(400, 0, 0, 0, 0, 0, now=10.0)
         assert decision.score == 4
         assert decision.level == "medium"
