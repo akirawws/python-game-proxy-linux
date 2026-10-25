@@ -146,7 +146,7 @@ class TestValidation:
         repo = make_repo()
         server_id = make_server(repo)
         policy = make_policy()
-        cmd = FirewallCommand(action="shell-command", server_id=server_id)  # type: ignore[arg-type]
+        cmd = FirewallCommand(action="shell-command", server_id=server_id)                          
         with pytest.raises(ValidationError):
             validate_command(cmd, repo, policy)
 
@@ -160,7 +160,7 @@ class TestValidation:
     def test_validate_command_action_not_allowed(self, make_repo=make_repo):
         repo = make_repo()
         server_id = make_server(repo)
-        policy = ServerPolicy.for_profile(PolicyProfile.WEB)  # DROP не разрешён
+        policy = ServerPolicy.for_profile(PolicyProfile.WEB)                    
         cmd = FirewallCommand(action=ActionType.DROP, server_id=server_id)
         with pytest.raises(ValidationError):
             validate_command(cmd, repo, policy)
@@ -221,7 +221,7 @@ class TestRuleManager:
         assert result.status == "proposed"
         assert result.rule_id is None
         assert backend.rules == {}
-        # правил в firewall_rules не должно быть применено (только аудит)
+                                                                         
         rules = repo.get_active_rules(server_id)
         assert rules == []
 
@@ -433,7 +433,7 @@ class TestRuleManager:
             ),
         )
 
-        # В nftables правила нет (как после перезапуска Python).
+                                                                
         mgr = self._manager(repo, backend=backend)
         stats = mgr.sync_with_nftables()
 
@@ -474,7 +474,7 @@ class TestRuleManager:
         r1 = mgr.apply_decision(d1)
         assert r1.status == "applied"
 
-        # Повтор того же действия для той же цели → постепенное усиление.
+                                                                         
         d2 = RuleDecision(
             action=ActionType.RATE_LIMIT,
             server_id=server_id,
@@ -493,7 +493,7 @@ class TestRuleManager:
         backend = FakeBackend()
         mgr = self._manager(repo, backend=backend)
 
-        # Порт не защищён сервером.
+                                   
         decision = RuleDecision(
             action=ActionType.DROP,
             server_id=server_id,
