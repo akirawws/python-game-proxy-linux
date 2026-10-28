@@ -27,6 +27,11 @@ class ProtectedServer:
     max_new_sources: int = 0
     max_connections: int = 0
     is_active: bool = True
+    description: str = ""
+    service_type: str = "custom"
+    internal_ip: str = ""
+    internal_port: int = 0
+    profile: str = "custom"
 
 
 @dataclass
@@ -35,6 +40,7 @@ class ProtectedPort:
     server_id: int = 0
     port: int = 0
     protocol: str = "tcp"
+    service_type: str = "custom"
 
 
 @dataclass
@@ -71,6 +77,7 @@ class AnomalyEvent:
     severity: str = "info"
     details: str = ""
     action_status: str = "proposed"
+    protocol: str = ""
 
 
 @dataclass
@@ -83,6 +90,9 @@ class FirewallRule:
     action: str = "drop"
     expires_at: Optional[datetime] = None
     is_active: bool = True
+    rule_type: str = "temporary"
+    reason: str = ""
+    created_at: Optional[datetime] = None
 
 
 @dataclass
@@ -92,6 +102,7 @@ class AuditLog:
     timestamp: Optional[datetime] = None
     action: str = ""
     details: str = ""
+    result: str = "ok"
 
 
 @dataclass

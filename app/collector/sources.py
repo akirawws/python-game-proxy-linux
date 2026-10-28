@@ -71,15 +71,17 @@ class MetricCollector:
                 return cur_val
             return cur_val - prev_val
 
+        in_bytes_delta = int(delta(current.in_bytes, prev.in_bytes))
+        out_bytes_delta = int(delta(current.out_bytes, prev.out_bytes))
         return MetricSnapshot(
             server_id=current.server_id,
             timestamp=current.timestamp,
-            in_bytes=int(delta(current.in_bytes, prev.in_bytes)),
-            out_bytes=int(delta(current.out_bytes, prev.out_bytes)),
+            in_bytes=in_bytes_delta,
+            out_bytes=out_bytes_delta,
             in_pps=delta(current.in_pps, prev.in_pps) / dt,
             out_pps=delta(current.out_pps, prev.out_pps) / dt,
-            in_bps=delta(current.in_bps, prev.in_bps) / dt,
-            out_bps=delta(current.out_bps, prev.out_bps) / dt,
+            in_bps=in_bytes_delta * 8.0 / dt,
+            out_bps=out_bytes_delta * 8.0 / dt,
             tcp_new=int(delta(current.tcp_new, prev.tcp_new)),
             udp_pps=delta(current.udp_pps, prev.udp_pps) / dt,
             conntrack_count=current.conntrack_count,

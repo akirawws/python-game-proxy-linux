@@ -19,6 +19,14 @@ DEFAULT_DATABASE = os.getenv("CLICKHOUSE_DATABASE", "netshield")
 DEFAULT_SECURE = os.getenv("CLICKHOUSE_SECURE", "false").lower() in ("1", "true", "yes", "on")
 DEFAULT_VERIFY = os.getenv("CLICKHOUSE_VERIFY", "false").lower() in ("1", "true", "yes", "on")
 
+                                                                              
+EVENT_GROUP_COLUMNS = {
+    "severity": "severity",
+    "event_type": "event_type",
+    "protocol": "protocol",
+    "action_status": "action_status",
+}
+
 
 class ClickHouseRepository:
     pass
@@ -137,7 +145,8 @@ class ClickHouseRepository:
                 score Float64 NOT NULL DEFAULT 0,
                 severity LowCardinality(String) NOT NULL DEFAULT 'info',
                 details String NOT NULL DEFAULT '',
-                action_status LowCardinality(String) NOT NULL DEFAULT 'proposed'
+                action_status LowCardinality(String) NOT NULL DEFAULT 'proposed',
+                protocol LowCardinality(String) NOT NULL DEFAULT ''
             ) ENGINE = MergeTree
             PARTITION BY toYYYYMM(timestamp)
             ORDER BY (server_id, timestamp)
@@ -145,6 +154,19 @@ class ClickHouseRepository:
             SETTINGS index_granularity = 8192;
             """
         )
+        self._migrate_columns()
+
+    def _migrate_columns(self) -> None:
+                                
+        try:
+            self.client.command(
+                "ALTER TABLE anomaly_events "
+                "ADD COLUMN IF NOT EXISTS protocol "
+                "LowCardinality(String) NOT NULL DEFAULT ''"
+            )
+        except Exception:
+                                                                          
+            pass
 
                                                                               
 
@@ -257,6 +279,198 @@ class ClickHouseRepository:
             parameters={"server_id": server_id, "from": date_from, "to": date_to},
         )
         return [dict(zip(result.column_names, row)) for row in result.result_rows]
+
+
+    def query_traffic_series(
+        self,
+        server_id: Optional[int],
+        date_from: datetime,
+        date_to: datetime,
+        bucket_seconds: int,
+    ) -> list[dict]:
+        server_filter = "" if server_id is None else "AND server_id = {server_id:UInt32}"
+        result = self.client.query(
+            f"""
+            SELECT intDiv(toUnixTimestamp(timestamp), {{bucket:UInt32}}) * {{bucket:UInt32}} AS bucket,
+                   sum(in_bytes) AS in_bytes,
+                   sum(out_bytes) AS out_bytes,
+                   avg(in_pps) AS in_pps,
+                   avg(out_pps) AS out_pps,
+                   avg(in_bps) AS in_bps,
+                   avg(out_bps) AS out_bps,
+                   count() AS samples
+            FROM traffic_metrics
+            WHERE timestamp >= {{from:DateTime64}}
+              AND timestamp < {{to:DateTime64}}
+              {server_filter}
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            """,
+            parameters={
+                "bucket": int(bucket_seconds),
+                "from": date_from,
+                "to": date_to,
+                "server_id": server_id or 0,
+            },
+        )
+        return [dict(zip(result.column_names, row)) for row in result.result_rows]
+
+    def query_connection_series(
+        self,
+        server_id: Optional[int],
+        date_from: datetime,
+        date_to: datetime,
+        bucket_seconds: int,
+    ) -> list[dict]:
+        server_filter = "" if server_id is None else "AND server_id = {server_id:UInt32}"
+        result = self.client.query(
+            f"""
+            SELECT intDiv(toUnixTimestamp(timestamp), {{bucket:UInt32}}) * {{bucket:UInt32}} AS bucket,
+                   avg(tcp_new) AS tcp_new,
+                   avg(udp_pps) AS udp_pps,
+                   avg(conntrack_count) AS conntrack_count,
+                   sum(new_sources) AS new_sources,
+                   count() AS samples
+            FROM connection_metrics
+            WHERE timestamp >= {{from:DateTime64}}
+              AND timestamp < {{to:DateTime64}}
+              {server_filter}
+            GROUP BY bucket
+            ORDER BY bucket ASC
+            """,
+            parameters={
+                "bucket": int(bucket_seconds),
+                "from": date_from,
+                "to": date_to,
+                "server_id": server_id or 0,
+            },
+        )
+        return [dict(zip(result.column_names, row)) for row in result.result_rows]
+
+    def list_events(
+        self,
+        server_id: Optional[int] = None,
+        severity: Optional[str] = None,
+        event_type: Optional[str] = None,
+        protocol: Optional[str] = None,
+        action_status: Optional[str] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        page: int = 1,
+        page_size: int = 50,
+    ) -> tuple[list[dict], int]:
+        where, parameters = self._event_where(
+            server_id, severity, event_type, protocol, action_status, date_from, date_to
+        )
+        page = max(1, int(page))
+        page_size = min(200, max(1, int(page_size)))
+        parameters.update({"limit": page_size, "offset": (page - 1) * page_size})
+        result = self.client.query(
+            f"""
+            SELECT server_id, timestamp, event_type, score, severity, details,
+                   action_status, protocol
+            FROM anomaly_events
+            {where}
+            ORDER BY timestamp DESC
+            LIMIT {{limit:UInt32}} OFFSET {{offset:UInt32}}
+            """,
+            parameters=parameters,
+        )
+        rows = [dict(zip(result.column_names, row)) for row in result.result_rows]
+        total = self._count_events(where, parameters)
+        return rows, total
+
+    def _event_where(
+        self,
+        server_id: Optional[int],
+        severity: Optional[str],
+        event_type: Optional[str],
+        protocol: Optional[str],
+        action_status: Optional[str],
+        date_from: Optional[datetime],
+        date_to: Optional[datetime],
+    ) -> tuple[str, dict]:
+        conditions: list[str] = []
+        parameters: dict = {}
+        if server_id is not None:
+            conditions.append("server_id = {server_id:UInt32}")
+            parameters["server_id"] = int(server_id)
+        if severity:
+            conditions.append("severity = {severity:String}")
+            parameters["severity"] = severity
+        if event_type:
+            conditions.append("event_type = {event_type:String}")
+            parameters["event_type"] = event_type
+        if protocol:
+            conditions.append("protocol = {protocol:String}")
+            parameters["protocol"] = protocol
+        if action_status:
+            conditions.append("action_status = {action_status:String}")
+            parameters["action_status"] = action_status
+        if date_from is not None:
+            conditions.append("timestamp >= {from:DateTime64}")
+            parameters["from"] = date_from
+        if date_to is not None:
+            conditions.append("timestamp < {to:DateTime64}")
+            parameters["to"] = date_to
+        where = (" WHERE " + " AND ".join(conditions)) if conditions else ""
+        return where, parameters
+
+    def _count_events(self, where: str, parameters: dict) -> int:
+        clean = {
+            key: value
+            for key, value in parameters.items()
+            if key not in ("limit", "offset")
+        }
+        result = self.client.query(
+            f"SELECT count() AS c FROM anomaly_events{where}", parameters=clean
+        )
+        return int(result.result_rows[0][0]) if result.result_rows else 0
+
+    def event_stats(
+        self,
+        server_id: Optional[int] = None,
+        date_from: Optional[datetime] = None,
+        date_to: Optional[datetime] = None,
+        group_by: str = "severity",
+    ) -> list[dict]:
+        column = EVENT_GROUP_COLUMNS.get(group_by, "severity")
+        key = group_by if group_by in EVENT_GROUP_COLUMNS else "severity"
+        where, parameters = self._event_where(
+            server_id, None, None, None, None, date_from, date_to
+        )
+        result = self.client.query(
+            f"""
+            SELECT {column} AS {key}, count() AS count, avg(score) AS avg_score,
+                   max(timestamp) AS last_event
+            FROM anomaly_events
+            {where}
+            GROUP BY {column}
+            ORDER BY count DESC
+            """,
+            parameters=parameters,
+        )
+        return [dict(zip(result.column_names, row)) for row in result.result_rows]
+
+    def latest_metric(self, server_id: Optional[int]) -> Optional[dict]:
+        where = "" if server_id is None else "WHERE server_id = {server_id:UInt32}"
+        result = self.client.query(
+            f"SELECT max(timestamp) AS timestamp FROM traffic_metrics {where}",
+            parameters={"server_id": int(server_id or 0)},
+        )
+        if not result.result_rows or result.result_rows[0][0] is None:
+            return None
+        return {"timestamp": result.result_rows[0][0]}
+
+    def latest_event(self, server_id: Optional[int]) -> Optional[dict]:
+        where = "" if server_id is None else "WHERE server_id = {server_id:UInt32}"
+        result = self.client.query(
+            f"SELECT max(timestamp) AS timestamp FROM anomaly_events {where}",
+            parameters={"server_id": int(server_id or 0)},
+        )
+        if not result.result_rows or result.result_rows[0][0] is None:
+            return None
+        return {"timestamp": result.result_rows[0][0]}
 
 
 def create_clickhouse_repository() -> ClickHouseRepository:
