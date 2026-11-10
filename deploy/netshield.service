@@ -1,0 +1,15 @@
+[Unit]
+Description=NetShield — защита от аномального трафика
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/netshield
+ExecStart=/usr/bin/python -m app.cli serve
+Restart=on-failure
+User=netshield
+Environment=NETSHIELD_HOST=0.0.0.0
+Environment=NETSHIELD_PORT=8000
+
+[Install]
+WantedBy=multi-user.target
