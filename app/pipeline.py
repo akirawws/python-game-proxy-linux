@@ -11,6 +11,7 @@ from app.collector.sources import MetricCollector, MetricSnapshot
 from app.collector.interfaces import InterfaceSource
 from app.collector.nftables import NftablesSource
 from app.collector.conntrack import ConntrackSource
+from app.collector.conntrack_top import ConntrackTopSource
 from app.collector.system_metrics import SystemMetricsSource
 from app.detector.scoring import Detector, Decision, ScoringScale
 from app.detector.thresholds import ThresholdDetector, ThresholdRule
@@ -25,7 +26,7 @@ log = logging.getLogger("netshield.pipeline")
 class ProtectionPipeline:
     """Основной конвейер защиты: сбор метрик -> обнаружение аномалий -> применение правил.
 
-    Запускается как отдельный поток/процесс. Не участвует в пересылке пакетов
+    Запускается как отдельный поток. Не участвует в пересылке пакетов
     (это делает ядро Linux), а работает с агрегированными метриками.
     """
 
@@ -51,7 +52,7 @@ class ProtectionPipeline:
         self.auto_actions = auto_actions
 
         self._last_rule_sync: Optional[float] = None
-        self._rule_sync_interval = 30.0  # перепроверка правил nftables каждые 30 сек
+        self._rule_sync_interval = 30.0
 
     # ------------------------------------------------------------------ setup
 
@@ -102,6 +103,7 @@ class ProtectionPipeline:
             self.collector.add_source(InterfaceSource(server_id=sid, interface=iface))
             self.collector.add_source(NftablesSource(server_id=sid))
             self.collector.add_source(ConntrackSource(server_id=sid))
+            self.collector.add_source(ConntrackTopSource(server_id=sid))
             self.collector.add_source(SystemMetricsSource(server_id=sid))
 
             log.info(
@@ -139,13 +141,14 @@ class ProtectionPipeline:
             new_sources=snap.new_sources,
             connections=snap.conntrack_count,
             now=now,
+            top_sources=snap.top_sources,
         )
 
         # Сохраняем событие, если есть аномалия
         if decision.score > 0:
             self._save_event(sid, decision, snap)
 
-        # Применяем защитное правило (если не observation mode и_auto_actions)
+        # Применяем защитное правило (если не observation mode и auto_actions)
         if decision.action not in ("none", "alert") or decision.score >= 4:
             self._apply_decision(sid, decision, snap)
 
@@ -186,40 +189,51 @@ class ProtectionPipeline:
             return
 
         server = self.server_configs.get(sid, {})
-        ip = server.get("ip", "")
+        ports = [int(p.get("port", 0)) for p in server.get("ports", [])]
+        port = ports[0] if ports else 0
+        protocol = "tcp"
 
-        rule_decision = RuleDecision(
-            action=decision.action,
-            server_id=sid,
-            ip=ip,
-            port=None,
-            protocol="both",
-            reason=decision.details or "аномалия",
-            score=decision.score,
-            ttl_seconds=decision.ttl_seconds,
-            expires_at=(
-                datetime.now(timezone.utc) + timedelta(seconds=decision.ttl_seconds)
-                if decision.ttl_seconds > 0
-                else None
-            ),
-        )
+        # Какие IP блокировать — из детектора (топ источников коннектов)
+        target_ips = list(decision.block_ips) if decision.block_ips else [server.get("ip", "")]
 
-        try:
-            result = mgr.apply_decision(rule_decision)
-            if result.status in ("applied", "proposed"):
-                log.info(
-                    "Сервер %d: правило %s (%s) — %s",
-                    sid,
-                    decision.action,
-                    decision.level,
-                    result.status,
+        for ip in target_ips:
+            if not ip:
+                continue
+
+            rule_decision = RuleDecision(
+                action=decision.action,
+                server_id=sid,
+                ip=ip,
+                port=port,
+                protocol=protocol,
+                reason=decision.details or "аномалия",
+                score=decision.score,
+                ttl_seconds=decision.ttl_seconds,
+                expires_at=(
+                    datetime.now(timezone.utc) + timedelta(seconds=decision.ttl_seconds)
+                    if decision.ttl_seconds > 0
+                    else None
+                ),
+            )
+
+            try:
+                result = mgr.apply_decision(rule_decision)
+                if result.status in ("applied", "proposed"):
+                    log.info(
+                        "Сервер %d: правило %s для IP %s — %s",
+                        sid,
+                        decision.action,
+                        ip,
+                        result.status,
+                    )
+                elif result.status == "rejected":
+                    log.warning(
+                        "Сервер %d: правило для IP %s отвергнуто: %s", sid, ip, result.reason
+                    )
+            except Exception as exc:
+                log.exception(
+                    "Ошибка применения правила для сервера %d IP %s: %s", sid, ip, exc
                 )
-            elif result.status == "rejected":
-                log.warning(
-                    "Сервер %d: правило отвергнуто: %s", sid, result.reason
-                )
-        except Exception as exc:
-            log.exception("Ошибка применения правила для сервера %d: %s", sid, exc)
 
     def _sync_rules(self) -> None:
         """Перепроверяет и применяет базовые правила nftables для всех серверов."""
@@ -268,8 +282,12 @@ class ProtectionPipeline:
             target=self._run_loop, name="netshield-pipeline", daemon=True
         )
         self._thread.start()
-        log.info("Конвейер защиты запущен (interval=%.1fs, observation=%s, auto=%s)",
-                 self.interval_sec, self.observation_mode, self.auto_actions)
+        log.info(
+            "Конвейер защиты запущен (interval=%.1fs, observation=%s, auto=%s)",
+            self.interval_sec,
+            self.observation_mode,
+            self.auto_actions,
+        )
 
     def _run_loop(self) -> None:
         while not self._stop_event.is_set():
@@ -291,5 +309,5 @@ class ProtectionPipeline:
         log.info("Конвейер защиты остановлен")
 
 
-# Глобальный экземпляр конвейера (запускается из main.py lifespan при 필요)
+# Глобальный экземпляр конвейера (запускается из main.py lifespan при необходимости)
 pipeline: Optional[ProtectionPipeline] = None

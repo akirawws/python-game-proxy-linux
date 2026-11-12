@@ -30,6 +30,7 @@ class MetricSnapshot:
     udp_pps: float = 0.0
     conntrack_count: int = 0
     new_sources: int = 0
+    top_sources: list[tuple[str, int]] = field(default_factory=list)
     cpu_percent: float = 0.0
     mem_percent: float = 0.0
     error: Optional[str] = None
@@ -87,6 +88,7 @@ class MetricCollector:
             udp_pps=delta(current.udp_pps, prev.udp_pps) / dt,
             conntrack_count=current.conntrack_count,
             new_sources=int(delta(current.new_sources, prev.new_sources)),
+            top_sources=current.top_sources,
             cpu_percent=current.cpu_percent,
             mem_percent=current.mem_percent,
             error=current.error,

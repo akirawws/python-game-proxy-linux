@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import subprocess
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional
@@ -16,7 +17,36 @@ __all__ = [
     "RuleManager",
 ]
 
+TABLE_NAME = "inet netshield"
+CHAIN_NAME = "input"
+
+
 class NftablesBackend:
+    """Реальное применение правил блокировки через nftables в ядре Linux."""
+
+    def __init__(self) -> None:
+        self._active: dict[int, str] = {}  # rule_id -> ip
+        self._ensure_base()
+
+    def _run(self, *args: str) -> subprocess.CompletedProcess:
+        return subprocess.run(
+            ["nft", *args],
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+    def _ensure_base(self) -> None:
+        """Создаёт таблицу и цепочку, если ещё нет."""
+        self._run("add", "table", TABLE_NAME)
+        self._run(
+            "add", "chain", TABLE_NAME, CHAIN_NAME,
+            "{ type filter hook input priority 0; policy accept; }",
+        )
+
+    def _comment(self, rule_id: int) -> str:
+        return f'comment "netshield:{rule_id}"'
+
     def apply_rule(
         self,
         *,
@@ -28,16 +58,70 @@ class NftablesBackend:
         expires_at,
         rule_id: int,
     ) -> None:
-        raise NotImplementedError
+        # Блокируем только drop / block_source по конкретному IP
+        if action not in ("drop", "block_source"):
+            return
+
+        parts = ["add", "rule", TABLE_NAME, CHAIN_NAME, "ip", "saddr", ip]
+        if port and protocol in ("tcp", "udp"):
+            parts += [protocol, "dport", str(port)]
+        parts += ["drop", self._comment(rule_id)]
+
+        self._run(*parts)
+        self._active[rule_id] = ip
 
     def remove_rule(self, rule_id: int) -> None:
-        raise NotImplementedError
+        ip = self._active.get(rule_id)
+        if not ip:
+            return
+        parts = ["delete", "rule", TABLE_NAME, CHAIN_NAME, "ip", "saddr", ip, "drop", self._comment(rule_id)]
+        self._run(*parts)
+        self._active.pop(rule_id, None)
 
     def list_active_rules(self) -> list[dict]:
-        return []
+        result = self._run("-j", "list", "ruleset")
+        rules: list[dict] = []
+        try:
+            import json
+            data = json.loads(result.stdout)
+        except Exception:
+            return rules
+
+        for item in data.get("nftables", []):
+            table = item.get("table", {})
+            if table.get("family") != "inet" or table.get("name") != "netshield":
+                continue
+            for chain in table.get("chain", []):
+                if chain.get("name") != CHAIN_NAME:
+                    continue
+                for rule in chain.get("rule", []):
+                    exprs = rule.get("expr", [])
+                    match = {}
+                    comment = ""
+                    handle = rule.get("handle")
+                    for expr in exprs:
+                        if "match" in expr:
+                            m = expr["match"]
+                            if m.get("op") == "==":
+                                match[m.get("left", "")] = m.get("right")
+                        if "comment" in expr:
+                            comment = expr["comment"].get("comment", "")
+                    if comment.startswith(f"netshield:"):
+                        try:
+                            rid = int(comment.split(":", 1)[1])
+                        except ValueError:
+                            continue
+                        rules.append({
+                            "rule_id": rid,
+                            "id": rid,
+                            "ip": match.get("ip saddr", ""),
+                            "handle": handle,
+                        })
+        return rules
 
     def ensure_base_rules(self, server_id: int, ip: str, ports: list[int]) -> None:
-        pass
+        self._ensure_base()
+
 
 @dataclass
 class RuleDecision:
@@ -51,11 +135,13 @@ class RuleDecision:
     ttl_seconds: int = 0
     expires_at: Optional[datetime] = None
 
+
 @dataclass
 class ApplyResult:
     status: str
     rule_id: Optional[int] = None
     reason: str = field(default_factory=str)
+
 
 class RuleManager:
     def __init__(

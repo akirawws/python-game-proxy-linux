@@ -24,6 +24,7 @@ class Decision:
     action: str = "none"
     ttl_seconds: int = 0
     details: str = ""
+    block_ips: list[str] = field(default_factory=list)
 
 class ScoringScale:
 
@@ -73,6 +74,7 @@ class Detector:
         new_sources: int,
         connections: int,
         now: float,
+        top_sources: list[tuple[str, int]] = (),
     ) -> Decision:
 
         thr_result: ThresholdResult = self.thresholds.check(
@@ -114,6 +116,7 @@ class Detector:
 
         action = "none"
         ttl_seconds = 0
+        block_ips: list[str] = []
 
         if confirmed and not in_cooldown:
             self._last_event_time = now
@@ -131,6 +134,9 @@ class Detector:
                     action = "alert"
                     ttl_seconds = 0
 
+            if action in ("drop", "limit") and top_sources:
+                block_ips = [ip for ip, _ in top_sources]
+
         return Decision(
             server_id=self.server_id,
             level=level,
@@ -139,4 +145,5 @@ class Detector:
             action=action,
             ttl_seconds=ttl_seconds,
             details="; ".join(reasons) if reasons else "норма",
+            block_ips=block_ips,
         )
